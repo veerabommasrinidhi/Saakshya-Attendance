@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance - Saakshya</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: #0a0a0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .attendance-container {
+            max-width: 900px;
+            margin: 50px auto;
+        }
+        
+        .info-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        #video {
+            width: 100%;
+            height: auto;
+            transform: scaleX(-1);
+            display: block;
+        }
+        
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .status-message {
+            font-size: 16px;
+            font-weight: bold;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .status-ready {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-processing {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .status-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border-left: 4px solid #10b981;
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .btn-capture {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 12px 30px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-capture:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .result-card {
+            animation: slideIn 0.5s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .liveness-score {
+            font-size: 12px;
+            color: #a0a0a0;
+            margin-top: 10px;
+        }
+        
+        .confidence-badge {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .auto-capture-info {
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .recording {
+            animation: pulse 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark">
+        <div class="container">
+            <span class="navbar-brand">
+                <i class="fas fa-camera me-2"></i>
+                Saakshya - Face Recognition
+            </span>
+            <button class="btn btn-outline-light" onclick="window.location.href='/admin_dashboard'">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </button>
+        </div>
+    </nav>
+    
+    <div class="container attendance-container">
+        <div class="info-panel text-center">
+            <h4><i class="fas fa-face-smile me-2"></i>Saakshya Face Recognition System</h4>
+            <p class="text-muted">Look at the camera for automatic attendance marking</p>
+            <div id="status" class="status-message status-ready">
+                <i class="fas fa-video me-2"></i>Ready to recognize faces...
+            </div>
+        </div>
+        
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas" class="canvas-overlay"></canvas>
+        </div>
+        
+        <div class="info-panel text-center">
+            <button class="btn btn-capture" onclick="captureAndRecognize()" id="captureBtn">
+                <i class="fas fa-camera me-2"></i>Capture & Recognize
+            </button>
+            <div id="result" class="mt-3"></div>
+            <div class="auto-capture-info">
+                <i class="fas fa-sync-alt me-2"></i>Auto-capture is active - System automatically detects faces every 3 seconds
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let video = document.getElementById('video');
+        let canvas = document.getElementById('canvas');
+        let stream = null;
+        let autoCaptureInterval = null;
+        let isProcessing = false;
+        
+        async function startVideo() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                await video.play();
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                updateStatus('Camera ready. Looking for faces...', 'ready');
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                updateStatus('Error: Cannot access camera. Please check permissions.', 'error');
+            }
+        }
+        
+        startVideo();
+        
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<i class="fas ${type === 'ready' ? 'fa-check-circle' : type === 'processing' ? 'fa-spinner fa-spin' : type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'} me-2"></i>${message}`;
+            statusDiv.className = `status-message status-${type}`;
+        }
+        
+        async function captureAndRecognize() {
+            if (isProcessing) {
+                console.log('Already processing...');
+                return;
+            }
+            
+            if (!video.videoWidth) {
+                updateStatus('Camera not ready. Please wait...', 'error');
+                return;
+            }
+            
+            isProcessing = true;
+            updateStatus('Processing face recognition with liveness detection...', 'processing');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = canvas.toDataURL('image/jpeg');
+            
+            try {
+                const response = await fetch('/api/recognize_face', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateStatus(`✅ ${result.message}`, 'success');
+                    showResult(result, 'success');
+                    playBeep();
+                } else {
+                    updateStatus(`❌ ${result.message}`, 'error');
+                    showResult(result, 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateStatus('Network error. Please try again.', 'error');
+                showResult({ message: 'Network error. Please try again.' }, 'error');
+            } finally {
+                isProcessing = false;
+            }
+        }
+        
+        function showResult(result, type) {
+            const resultDiv = document.getElementById('result');
+            
+            if (type === 'success' && result.student) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success result-card" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981;">
+                        <i class="fas fa-user-check me-2"></i>
+                        <strong>${result.student.name}</strong> (${result.student.student_id})<br>
+                        <small>${result.message}</small>
+                        ${result.confidence ? `<br><span class="confidence-badge"><i class="fas fa-chart-line me-1"></i>Confidence: ${result.confidence}%</span>` : ''}
+                        ${result.liveness_score ? `<div class="liveness-score"><i class="fas fa-shield-alt me-1"></i>Liveness Score: ${result.liveness_score}%</div>` : ''}
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger result-card" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;">
+                        <i class="fas fa-times-circle me-2"></i>
+                        ${result.message}
+                        ${result.liveness_score ? `<div class="liveness-score"><i class="fas fa-shield-alt me-1"></i>Liveness Score: ${result.liveness_score}%</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            setTimeout(() => {
+                if (document.getElementById('result').innerHTML === resultDiv.innerHTML) {
+                    resultDiv.innerHTML = '';
+                }
+            }, 5000);
+        }
+        
+        function playBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator.frequency.value = 880;
+                gainNode.gain.value = 0.3;
+                
+                oscillator.start();
+                setTimeout(() => {
+                    oscillator.stop();
+                    audioCtx.close();
+                }, 200);
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+        
+        function startAutoCapture() {
+            if (autoCaptureInterval) clearInterval(autoCaptureInterval);
+            autoCaptureInterval = setInterval(() => {
+                if (!isProcessing) {
+                    captureAndRecognize();
+                }
+            }, 3000);
+        }
+        
+        function stopAutoCapture() {
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+                autoCaptureInterval = null;
+            }
+        }
+        
+        startAutoCapture();
+        
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            stopAutoCapture();
+        });
+    </script>
+</body>
+</html>

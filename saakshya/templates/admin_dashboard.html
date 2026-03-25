@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Saakshya</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #667eea;
+        }
+        
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-5px);
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .stats-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            font-size: 24px;
+        }
+        
+        .stats-number {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #667eea;
+        }
+        
+        .stats-label {
+            color: #a0a0a0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .table {
+            color: white;
+        }
+        
+        .table thead th {
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            color: #667eea;
+        }
+        
+        .badge-present {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .badge-absent {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .progress-custom {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        
+        .progress-bar-custom {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 3px;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in {
+            animation: fadeInUp 0.6s ease;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark">
+        <div class="container">
+            <span class="navbar-brand">
+                <i class="fas fa-chalkboard-teacher me-2"></i>
+                Saakshya Admin
+            </span>
+            <div>
+                <button class="btn btn-primary-custom me-2" onclick="window.location.href='/take_attendance'">
+                    <i class="fas fa-camera me-2"></i>Mark Attendance
+                </button>
+                <button class="btn btn-outline-light" onclick="logout()">
+                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card animate-fade-in">
+                    <div class="stats-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stats-number" id="totalStudents">0</div>
+                    <div class="stats-label">Total Students</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card animate-fade-in">
+                    <div class="stats-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stats-number" id="presentToday">0</div>
+                    <div class="stats-label">Present Today</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card animate-fade-in">
+                    <div class="stats-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stats-number" id="avgAttendance">0%</div>
+                    <div class="stats-label">Avg Attendance (30d)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card animate-fade-in">
+                    <div class="stats-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="stats-number" id="attendanceRate">0%</div>
+                    <div class="stats-label">Today's Rate</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="dashboard-card animate-fade-in">
+                    <div class="section-title">
+                        <i class="fas fa-calendar-day me-2"></i>Today's Attendance
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Time</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="todayAttendance">
+                                <tr><td colspan="4" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="dashboard-card animate-fade-in">
+                    <div class="section-title">
+                        <i class="fas fa-chart-pie me-2"></i>Attendance Distribution
+                    </div>
+                    <canvas id="attendanceChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="dashboard-card animate-fade-in">
+                    <div class="section-title">
+                        <i class="fas fa-table me-2"></i>Student Attendance Report
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                 <tr>
+                                    <th>Student ID</th>
+                                    <th>Name</th>
+                                    <th>Department</th>
+                                    <th>Total</th>
+                                    <th>Present</th>
+                                    <th>%</th>
+                                    <th>Status</th>
+                                    <th>Progress</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceReport">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let attendanceChart = null;
+        let socket = io();
+        
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+        
+        socket.on('attendance_marked', function(data) {
+            console.log('Attendance marked:', data);
+            loadDashboardData();
+        });
+        
+        socket.on('new_student_registered', function(data) {
+            console.log('New student registered:', data);
+            loadDashboardData();
+        });
+        
+        async function loadDashboardData() {
+            await Promise.all([
+                loadSummary(),
+                loadTodayAttendance(),
+                loadAttendanceReport()
+            ]);
+        }
+        
+        async function loadSummary() {
+            try {
+                const response = await fetch('/api/attendance_summary');
+                const result = await response.json();
+                if (result.success) {
+                    const data = result.data;
+                    document.getElementById('totalStudents').textContent = data.total_students;
+                    document.getElementById('presentToday').textContent = data.present_today;
+                    document.getElementById('avgAttendance').textContent = `${data.avg_attendance_30d}%`;
+                    document.getElementById('attendanceRate').textContent = `${data.attendance_rate}%`;
+                }
+            } catch (error) {
+                console.error('Error loading summary:', error);
+            }
+        }
+        
+        async function loadTodayAttendance() {
+            try {
+                const response = await fetch('/api/todays_attendance');
+                const result = await response.json();
+                if (result.success) {
+                    const tbody = document.getElementById('todayAttendance');
+                    tbody.innerHTML = '';
+                    
+                    result.data.forEach(record => {
+                        const statusClass = record.status === 'present' ? 'badge-present' : 'badge-absent';
+                        const statusText = record.status === 'present' ? 'Present' : 'Absent';
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${record.student_id}</td>
+                                <td>${record.name}</td>
+                                <td>${record.time}</td>
+                                <td><span class="${statusClass}">${statusText}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading today attendance:', error);
+            }
+        }
+        
+        async function loadAttendanceReport() {
+            try {
+                const response = await fetch('/api/all_attendance');
+                const result = await response.json();
+                if (result.success) {
+                    const tbody = document.getElementById('attendanceReport');
+                    tbody.innerHTML = '';
+                    let excellent = 0, average = 0, poor = 0;
+                    
+                    result.data.forEach(student => {
+                        const percentage = student.percentage;
+                        let status = '', statusClass = '', progressColor = '';
+                        
+                        if (percentage >= 75) {
+                            status = 'Excellent';
+                            statusClass = 'badge-present';
+                            progressColor = '#10b981';
+                            excellent++;
+                        } else if (percentage >= 50) {
+                            status = 'Average';
+                            statusClass = 'badge-warning';
+                            progressColor = '#f59e0b';
+                            average++;
+                        } else {
+                            status = 'Poor';
+                            statusClass = 'badge-absent';
+                            progressColor = '#ef4444';
+                            poor++;
+                        }
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${student.student_id}</td>
+                                <td><strong>${student.name}</strong></td>
+                                <td>${student.department}</td>
+                                <td>${student.total_classes}</td>
+                                <td>${student.present}</td>
+                                <td><strong>${percentage}%</strong></td>
+                                <td><span class="${statusClass}" style="padding: 3px 10px;">${status}</span></td>
+                                <td style="width: 120px;">
+                                    <div class="progress progress-custom">
+                                        <div class="progress-bar progress-bar-custom" 
+                                             style="width: ${percentage}%; background: ${progressColor};"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    updateChart(excellent, average, poor);
+                }
+            } catch (error) {
+                console.error('Error loading attendance report:', error);
+            }
+        }
+        
+        function updateChart(excellent, average, poor) {
+            const ctx = document.getElementById('attendanceChart').getContext('2d');
+            
+            if (attendanceChart) {
+                attendanceChart.destroy();
+            }
+            
+            attendanceChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Excellent (≥75%)', 'Average (50-74%)', 'Poor (<50%)'],
+                    datasets: [{
+                        data: [excellent, average, poor],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#ffffff' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        }
+        
+        setInterval(loadDashboardData, 30000);
+        loadDashboardData();
+    </script>
+</body>
+</html>
